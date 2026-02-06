@@ -1,0 +1,107 @@
+[
+  {
+    "id": "hello-world-flow",
+    "config": {
+      "src/hello/log-greeting.step.js": {
+        "x": 409,
+        "y": 44
+      },
+      "src/hello/hello-api.step.ts": {
+        "x": -409,
+        "y": 0,
+        "sourceHandlePosition": "right"
+      },
+      "src/hello/process_greeting_step.py": {
+        "x": 0,
+        "y": 34,
+        "sourceHandlePosition": "right"
+      }
+    }
+  },
+  {
+    "id": "api-key-management",
+    "config": {
+      "src/auth/api-keys/list.step.ts": {
+        "x": 11,
+        "y": 0
+      },
+      "src/auth/api-keys/delete.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/api-keys/create.step.ts": {
+        "x": 0,
+        "y": 428
+      },
+      "src/auth/events/api-key-create-completed.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/events/api-key-delete-completed.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/events/api-key-failed.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/events/api-key-create-processing.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/events/api-key-delete-processing.step.ts": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  },
+  {
+    "id": "authentication",
+    "config": {
+      "src/auth/registration.step.ts": {
+        "x": 0,
+        "y": 49
+      },
+      "src/auth/me.step.ts": {
+        "x": 44,
+        "y": 204
+      },
+      "src/auth/login.step.ts": {
+        "x": 46,
+        "y": 408
+      },
+      "src/auth/events/login-completed.step.ts": {
+        "x": 744,
+        "y": 355
+      },
+      "src/auth/events/registration-completed.step.ts": {
+        "x": 687,
+        "y": 0
+      },
+      "src/auth/events/registration-failed.step.ts": {
+        "x": 740,
+        "y": 219
+      },
+      "src/auth/events/registration-processing.step.ts": {
+        "x": 347,
+        "y": 83
+      },
+      "src/auth/events/login-processing.step.ts": {
+        "x": 369,
+        "y": 491
+      },
+      "src/auth/events/welcome-email-sent.step.ts": {
+        "x": 1387,
+        "y": 10
+      },
+      "src/auth/events/welcome-email-processing.step.ts": {
+        "x": 1037,
+        "y": 0
+      },
+      "src/auth/events/login-failed.step.ts": {
+        "x": 741,
+        "y": 559
+      }
+    }
+  }
+]
