@@ -12,6 +12,10 @@ export const session = pgTable('session', {
   userAgent: text('userAgent'),
   createdAt: timestamp('createdAt').notNull(),
   updatedAt: timestamp('updatedAt').notNull(),
+  // Admin plugin fields
+  impersonatedBy: text('impersonatedBy'),
+  // Organization plugin fields
+  activeOrganizationId: text('activeOrganizationId'),
 })
 
 export type Session = typeof session.$inferSelect

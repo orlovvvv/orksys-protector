@@ -8,6 +8,11 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('createdAt').notNull(),
   updatedAt: timestamp('updatedAt').notNull(),
+  // Admin plugin fields
+  role: text('role'),
+  banned: boolean('banned').notNull().default(false),
+  banReason: text('banReason'),
+  banExpires: timestamp('banExpires'),
 })
 
 export type User = typeof user.$inferSelect

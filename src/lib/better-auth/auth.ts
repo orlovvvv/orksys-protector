@@ -2,6 +2,8 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { bearer } from 'better-auth/plugins'
 import { apiKey } from 'better-auth/plugins'
+import { organization } from 'better-auth/plugins'
+import { admin } from 'better-auth/plugins'
 import { db } from '../db/drizzle'
 import * as schema from '../db/schema/index'
 
@@ -14,6 +16,10 @@ export const auth = betterAuth({
       account: schema.account,
       verification: schema.verification,
       apiKey: schema.apiKey,
+      // Organization tables
+      organization: schema.organization,
+      member: schema.member,
+      invitation: schema.invitation,
     },
     usePlural: false,
   }),
@@ -29,6 +35,16 @@ export const auth = betterAuth({
       },
       enableMetadata: true,
       enableSessionForAPIKeys: true,
+    }),
+    organization({
+      allowUserToCreateOrganization: true,
+    }),
+    admin({
+      defaultRole: 'user',
+      adminRoles: ['admin'],
+      adminUserIds: process.env.ADMIN_USER_IDS
+        ? process.env.ADMIN_USER_IDS.split(',')
+        : undefined,
     }),
   ],
 

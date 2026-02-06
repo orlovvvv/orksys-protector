@@ -61,8 +61,8 @@ export const authMiddleware: ApiMiddleware = async (req, ctx, next) => {
     }
 
     // Inject session and user into request for handlers to use
-    req.session = session
-    req.user = session.user
+    req.session = session as any
+    req.user = session.user as any
 
     logger.debug('Request authenticated', {
       userId: session.user.id,

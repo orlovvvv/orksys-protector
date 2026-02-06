@@ -19,56 +19,19 @@
     }
   },
   {
-    "id": "api-key-management",
-    "config": {
-      "src/auth/api-keys/list.step.ts": {
-        "x": 11,
-        "y": 0
-      },
-      "src/auth/api-keys/delete.step.ts": {
-        "x": 0,
-        "y": 204
-      },
-      "src/auth/api-keys/create.step.ts": {
-        "x": 0,
-        "y": 428
-      },
-      "src/auth/events/api-key-create-completed.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/events/api-key-delete-completed.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/events/api-key-failed.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/events/api-key-create-processing.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/events/api-key-delete-processing.step.ts": {
-        "x": 0,
-        "y": 0
-      }
-    }
-  },
-  {
     "id": "authentication",
     "config": {
       "src/auth/registration.step.ts": {
-        "x": 0,
-        "y": 49
+        "x": -12,
+        "y": -81
       },
       "src/auth/me.step.ts": {
-        "x": 44,
-        "y": 204
+        "x": 399,
+        "y": 262
       },
       "src/auth/login.step.ts": {
-        "x": 46,
-        "y": 408
+        "x": 77,
+        "y": 490
       },
       "src/auth/events/login-completed.step.ts": {
         "x": 744,
@@ -87,8 +50,8 @@
         "y": 83
       },
       "src/auth/events/login-processing.step.ts": {
-        "x": 369,
-        "y": 491
+        "x": 380,
+        "y": 482
       },
       "src/auth/events/welcome-email-sent.step.ts": {
         "x": 1387,
@@ -101,6 +64,113 @@
       "src/auth/events/login-failed.step.ts": {
         "x": 741,
         "y": 559
+      }
+    }
+  },
+  {
+    "id": "admin-management",
+    "config": {
+      "src/auth/events/admin-audit.step.ts": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  },
+  {
+    "id": "api-key-management",
+    "config": {
+      "src/auth/api-keys/list.step.ts": {
+        "x": 11,
+        "y": 0
+      },
+      "src/auth/api-keys/delete.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/api-keys/create.step.ts": {
+        "x": 0,
+        "y": 428
+      },
+      "src/auth/events/api-key-create-completed.step.ts": {
+        "x": 846,
+        "y": 837
+      },
+      "src/auth/events/api-key-delete-completed.step.ts": {
+        "x": 848,
+        "y": 134
+      },
+      "src/auth/events/api-key-failed.step.ts": {
+        "x": 1037,
+        "y": 361
+      },
+      "src/auth/events/api-key-create-processing.step.ts": {
+        "x": 285,
+        "y": 785
+      },
+      "src/auth/events/api-key-delete-processing.step.ts": {
+        "x": 402,
+        "y": 119
+      }
+    }
+  },
+  {
+    "id": "organization-management",
+    "config": {
+      "src/auth/events/organization-audit.step.ts": {
+        "x": 533,
+        "y": 355
+      },
+      "src/auth/organizations/members/add.step.ts": {
+        "x": 3,
+        "y": 0
+      },
+      "src/auth/organizations/invitations/list.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/organizations/invitations/create.step.ts": {
+        "x": 0,
+        "y": 428
+      },
+      "src/auth/organizations/members/remove.step.ts": {
+        "x": 0,
+        "y": 652
+      },
+      "src/auth/organizations/create.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/list.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/get.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/delete.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/set-active.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/leave.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/invitations/accept.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/invitations/cancel.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/members/update-role.step.ts": {
+        "x": 0,
+        "y": 0
       }
     }
   }
