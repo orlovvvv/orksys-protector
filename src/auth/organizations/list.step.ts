@@ -30,10 +30,10 @@ export const config: ApiRouteConfig = {
         id: z.string(),
         name: z.string(),
         slug: z.string(),
-        logo: z.string().nullable().optional(),
+        logo: z.string().nullish(),
         createdAt: z.string(),
       })),
-      activeOrganizationId: z.string().nullable().optional(),
+      activeOrganizationId: z.string().nullish(),
     }),
     400: z.object({
       error: z.string(),

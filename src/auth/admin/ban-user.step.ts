@@ -48,11 +48,11 @@ export const config: ApiRouteConfig = {
     200: z.object({
       user: z.object({
         id: z.string(),
-        name: z.string().nullable(),
+        name: z.string().nullish(),
         email: z.string(),
         banned: z.boolean(),
-        banReason: z.string().nullable(),
-        banExpires: z.string().nullable(),
+        banReason: z.string().nullish(),
+        banExpires: z.string().nullish(),
       }),
     }),
     400: z.object({
@@ -145,6 +145,7 @@ export const handler: Handlers['AdminBanUser'] = async (req, { emit, logger }) =
     await emit({
       topic: 'admin.user.banned',
       data: {
+        __topic: 'admin.user.banned',
         userId,
         banReason: userData.banReason,
         banExpires: userData.banExpires ? new Date(userData.banExpires).toISOString() : null,

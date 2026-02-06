@@ -6,7 +6,7 @@ const inputSchema = z.object({
   userId: z.string(),
   name: z.string(),
   prefix: z.string(),
-  expiresAt: z.string().nullable(),
+  expiresAt: z.string().nullish(),
   createdAt: z.string(),
 })
 

@@ -46,7 +46,7 @@ export const config: ApiRouteConfig = {
         id: z.string(),
         name: z.string(),
         slug: z.string(),
-        logo: z.string().nullable().optional(),
+        logo: z.string().nullish(),
         createdAt: z.string(),
       }),
       member: z.object({
@@ -135,6 +135,7 @@ export const handler: Handlers['CreateOrganization'] = async (req, { emit, logge
     await emit({
       topic: 'organization.created',
       data: {
+        __topic: 'organization.created',
         organizationId: orgData.id,
         organizationName: orgData.name,
         userId: req.user.id,

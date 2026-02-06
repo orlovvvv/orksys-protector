@@ -5,9 +5,9 @@ const inputSchema = z.object({
   apiKeyId: z.string(),
   key: z.string(),
   userId: z.string(),
-  name: z.string().nullable(),
-  prefix: z.string().nullable(),
-  expiresAt: z.string().nullable(),
+  name: z.string().nullish(),
+  prefix: z.string().nullish(),
+  expiresAt: z.string().nullish(),
   timestamp: z.string(),
 })
 

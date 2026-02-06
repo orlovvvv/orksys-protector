@@ -13,7 +13,7 @@ const bodySchema = z.object({
     .optional(),
   logo: z.string().url().optional(),
   // metadata: Record<string, any> for arbitrary metadata
-  metadata: z.optional(z.lazy(() => z.record(z.string()))),
+  metadata: z.record(z.string(), z.any()).optional(),
 })
 
 // Type for Better Auth updateOrganization response
@@ -42,7 +42,7 @@ export const config: ApiRouteConfig = {
         id: z.string(),
         name: z.string(),
         slug: z.string(),
-        logo: z.string().nullable().optional(),
+        logo: z.string().nullish(),
         createdAt: z.string(),
       }),
     }),
@@ -136,6 +136,7 @@ export const handler: Handlers['UpdateOrganization'] = async (req, { emit, logge
     await emit({
       topic: 'organization.updated',
       data: {
+        __topic: 'organization.updated',
         organizationId: orgId,
         organizationName: orgData.name,
         userId: req.user.id,

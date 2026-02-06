@@ -122,13 +122,12 @@ export const handler: Handlers['CreateInvitation'] = async (req, { emit, logger 
     await emit({
       topic: 'organization.invitation.created',
       data: {
+        __topic: 'organization.invitation.created',
         organizationId: orgId,
         invitationId: invitationData.id,
         email,
         role,
-        invitedByUserId: req.user.id,
-        invitedByUserEmail: req.user.email,
-        expiresAt: expiresAt.toISOString(),
+        createdAt: new Date(invitationData.createdAt).toISOString(),
       },
     })
 

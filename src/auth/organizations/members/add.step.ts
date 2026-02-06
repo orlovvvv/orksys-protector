@@ -156,6 +156,7 @@ export const handler: Handlers['AddOrganizationMember'] = async (req, { emit, lo
     await emit({
       topic: 'organization.member.added',
       data: {
+        __topic: 'organization.member.added',
         organizationId: orgId,
         memberId: memberData.id,
         addedUserId: targetUser.id,

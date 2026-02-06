@@ -106,6 +106,7 @@ export const handler: Handlers['SetActiveOrganization'] = async (req, { emit, lo
     await emit({
       topic: 'organization.active.changed',
       data: {
+        __topic: 'organization.active.changed',
         userId: req.user.id,
         userEmail: req.user.email,
         organizationId: data.activeOrganizationId,

@@ -46,9 +46,9 @@ export const config: ApiRouteConfig = {
     200: z.object({
       user: z.object({
         id: z.string(),
-        name: z.string().nullable(),
+        name: z.string().nullish(),
         email: z.string(),
-        role: z.string().nullable(),
+        role: z.string().nullish(),
       }),
     }),
     400: z.object({
@@ -140,6 +140,7 @@ export const handler: Handlers['AdminSetRole'] = async (req, { emit, logger }) =
     await emit({
       topic: 'admin.user.roleChanged',
       data: {
+        __topic: 'admin.user.roleChanged',
         userId,
         newRole: userData.role,
         changedByUserId: req.user.id,

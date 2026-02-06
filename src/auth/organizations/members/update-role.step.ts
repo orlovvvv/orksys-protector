@@ -132,6 +132,7 @@ export const handler: Handlers['UpdateMemberRole'] = async (req, { emit, logger 
     await emit({
       topic: 'organization.member.roleUpdated',
       data: {
+        __topic: 'organization.member.roleUpdated',
         organizationId: orgId,
         memberId,
         newRole: role,

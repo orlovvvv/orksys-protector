@@ -39,13 +39,13 @@ export const config: ApiRouteConfig = {
     200: z.object({
       users: z.array(z.object({
         id: z.string(),
-        name: z.string().nullable(),
+        name: z.string().nullish(),
         email: z.string(),
         emailVerified: z.boolean(),
-        role: z.string().nullable(),
-        banned: z.boolean().nullable(),
-        banReason: z.string().nullable(),
-        banExpires: z.string().nullable(),
+        role: z.string().nullish(),
+        banned: z.boolean().nullish(),
+        banReason: z.string().nullish(),
+        banExpires: z.string().nullish(),
         createdAt: z.string(),
       })),
       total: z.number(),

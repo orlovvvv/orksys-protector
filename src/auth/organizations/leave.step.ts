@@ -104,6 +104,7 @@ export const handler: Handlers['LeaveOrganization'] = async (req, { emit, logger
     await emit({
       topic: 'organization.member.left',
       data: {
+        __topic: 'organization.member.left',
         organizationId: orgId,
         userId: req.user.id,
         userEmail: req.user.email,

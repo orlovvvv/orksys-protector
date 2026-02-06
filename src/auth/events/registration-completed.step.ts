@@ -5,7 +5,7 @@ const inputSchema = z.object({
   userId: z.string(),
   email: z.string().email(),
   name: z.string(),
-  token: z.string().nullable(),
+  token: z.string().nullish(),
   timestamp: z.string(),
 })
 

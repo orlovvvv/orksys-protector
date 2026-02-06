@@ -32,6 +32,7 @@
     "drizzle-orm": "^0.45.1",
     "motia": "0.17.14-beta.196",
     "postgres": "^3.4.8",
+    "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

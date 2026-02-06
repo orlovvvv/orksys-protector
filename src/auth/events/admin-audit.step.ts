@@ -1,12 +1,23 @@
 import type { EventConfig, Handlers } from 'motia'
 import { z } from 'zod'
 
-// Union type for all possible admin event inputs
-type AdminAuditInput =
-  | { __topic: 'admin.user.roleChanged'; userId: string; newRole: string; changedByUserId: string; changedByUserEmail: string }
-  | { __topic: 'admin.user.banned'; userId: string; banReason: string | null; banExpires: string | null; bannedByUserId: string; bannedByUserEmail: string }
-  | { __topic: 'admin.user.unbanned'; userId: string; unbannedByUserId: string; unbannedByUserEmail: string }
-  | { __topic: 'admin.user.deleted'; userId: string; deletedByUserId: string; deletedByUserEmail: string }
+// Simple flexible schema for all admin audit events
+// Using a single object schema with optional fields for Motia compatibility
+const inputSchema = z.object({
+  __topic: z.string(),
+  userId: z.string(),
+  newRole: z.string().optional(),
+  banReason: z.string().nullish().optional(),
+  banExpires: z.string().nullish().optional(),
+  bannedByUserId: z.string().optional(),
+  bannedByUserEmail: z.string().optional(),
+  unbannedByUserId: z.string().optional(),
+  unbannedByUserEmail: z.string().optional(),
+  deletedByUserId: z.string().optional(),
+  deletedByUserEmail: z.string().optional(),
+  changedByUserId: z.string().optional(),
+  changedByUserEmail: z.string().optional(),
+})
 
 export const config: EventConfig = {
   name: 'AdminAuditLogger',
@@ -19,54 +30,54 @@ export const config: EventConfig = {
     'admin.user.deleted',
   ],
   emits: [],
+  input: inputSchema,
   flows: ['admin-management'],
 }
 
-export const handler: Handlers['AdminAuditLogger'] = async (input: AdminAuditInput, { logger }) => {
+export const handler: Handlers['AdminAuditLogger'] = async (input, { logger }) => {
   try {
-    const topic = input.__topic as string
+    const { __topic } = input
 
     logger.info('Admin audit log', {
-      topic,
+      topic: __topic,
       data: input,
       timestamp: new Date().toISOString(),
     })
 
-    // Here you would typically write to an audit log table or external service
-    // For now, we just log the event
-    switch (topic) {
+    // Log specific event based on topic
+    switch (__topic) {
       case 'admin.user.roleChanged':
         logger.info('AUDIT: User role changed by admin', {
-          userId: (input as any).userId,
-          newRole: (input as any).newRole,
-          changedByUserId: (input as any).changedByUserId,
-          changedByUserEmail: (input as any).changedByUserEmail,
+          userId: input.userId,
+          newRole: input.newRole,
+          changedByUserId: input.changedByUserId,
+          changedByUserEmail: input.changedByUserEmail,
         })
         break
 
       case 'admin.user.banned':
         logger.info('AUDIT: User banned by admin', {
-          userId: (input as any).userId,
-          banReason: (input as any).banReason,
-          banExpires: (input as any).banExpires,
-          bannedByUserId: (input as any).bannedByUserId,
-          bannedByUserEmail: (input as any).bannedByUserEmail,
+          userId: input.userId,
+          banReason: input.banReason,
+          banExpires: input.banExpires,
+          bannedByUserId: input.bannedByUserId,
+          bannedByUserEmail: input.bannedByUserEmail,
         })
         break
 
       case 'admin.user.unbanned':
         logger.info('AUDIT: User unbanned by admin', {
-          userId: (input as any).userId,
-          unbannedByUserId: (input as any).unbannedByUserId,
-          unbannedByUserEmail: (input as any).unbannedByUserEmail,
+          userId: input.userId,
+          unbannedByUserId: input.unbannedByUserId,
+          unbannedByUserEmail: input.unbannedByUserEmail,
         })
         break
 
       case 'admin.user.deleted':
         logger.info('AUDIT: User deleted by admin', {
-          userId: (input as any).userId,
-          deletedByUserId: (input as any).deletedByUserId,
-          deletedByUserEmail: (input as any).deletedByUserEmail,
+          userId: input.userId,
+          deletedByUserId: input.deletedByUserId,
+          deletedByUserEmail: input.deletedByUserEmail,
         })
         break
     }

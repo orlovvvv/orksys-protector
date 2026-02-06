@@ -43,7 +43,7 @@ export const config: ApiRouteConfig = {
         id: z.string(),
         name: z.string(),
         slug: z.string(),
-        logo: z.string().nullable().optional(),
+        logo: z.string().nullish(),
         createdAt: z.string(),
       }),
       members: z.array(z.object({
@@ -53,9 +53,9 @@ export const config: ApiRouteConfig = {
         createdAt: z.string(),
         user: z.object({
           id: z.string(),
-          name: z.string().nullable(),
+          name: z.string().nullish(),
           email: z.string(),
-          image: z.string().nullable(),
+          image: z.string().nullish(),
         }),
       })),
     }),

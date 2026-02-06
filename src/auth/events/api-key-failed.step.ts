@@ -1,16 +1,11 @@
 import type { EventConfig, Handlers } from 'motia'
 import { z } from 'zod'
 
-const createFailedSchema = z.object({
+// Simple flexible schema for API key failed events
+const inputSchema = z.object({
   userId: z.string(),
-  name: z.string(),
-  error: z.string(),
-  timestamp: z.string(),
-})
-
-const deleteFailedSchema = z.object({
-  userId: z.string(),
-  apiKeyId: z.string(),
+  name: z.string().optional(),
+  apiKeyId: z.string().optional(),
   error: z.string(),
   timestamp: z.string(),
 })
@@ -21,16 +16,16 @@ export const config: EventConfig = {
   description: 'Log failed API key operations',
   subscribes: ['api-key.creation.failed', 'api-key.deletion.failed'],
   emits: [],
-  input: z.union([createFailedSchema, deleteFailedSchema]),
+  input: inputSchema,
   flows: ['api-key-management'],
 }
 
 export const handler: Handlers['LogApiKeyFailed'] = async (input, { logger, state }) => {
-  const { timestamp } = input
+  const { timestamp, userId, error } = input
 
-  if ('apiKeyId' in input) {
+  if (input.apiKeyId) {
     // Deletion failure
-    const { userId, apiKeyId, error } = input
+    const { apiKeyId } = input
     logger.warn('API key deletion workflow failed', {
       apiKeyId,
       userId,
@@ -47,7 +42,7 @@ export const handler: Handlers['LogApiKeyFailed'] = async (input, { logger, stat
     })
   } else {
     // Creation failure
-    const { userId, name, error } = input
+    const { name } = input
     logger.warn('API key creation workflow failed', {
       userId,
       name,

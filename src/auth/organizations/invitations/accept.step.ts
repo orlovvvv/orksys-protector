@@ -138,12 +138,11 @@ export const handler: Handlers['AcceptInvitation'] = async (req, { emit, logger 
     await emit({
       topic: 'organization.invitation.accepted',
       data: {
+        __topic: 'organization.invitation.accepted',
         invitationId,
-        organizationId: data.organization?.id,
-        organizationName: data.organization?.name,
+        organizationId: data.organization?.id || '',
         userId: req.user.id,
-        userEmail: req.user.email,
-        role: data.member?.role,
+        acceptedAt: new Date().toISOString(),
       },
     })
 

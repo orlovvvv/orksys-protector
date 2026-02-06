@@ -101,6 +101,7 @@ export const handler: Handlers['DeleteOrganization'] = async (req, { emit, logge
     await emit({
       topic: 'organization.deleted',
       data: {
+        __topic: 'organization.deleted',
         organizationId: orgId,
         userId: req.user.id,
         userEmail: req.user.email,

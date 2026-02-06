@@ -68,15 +68,6 @@
     }
   },
   {
-    "id": "admin-management",
-    "config": {
-      "src/auth/events/admin-audit.step.ts": {
-        "x": 0,
-        "y": 0
-      }
-    }
-  },
-  {
     "id": "api-key-management",
     "config": {
       "src/auth/api-keys/list.step.ts": {
@@ -116,9 +107,41 @@
   {
     "id": "organization-management",
     "config": {
-      "src/auth/events/organization-audit.step.ts": {
-        "x": 533,
-        "y": 355
+      "src/auth/organizations/update.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/set-active.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/list.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/leave.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/get.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/delete.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/create.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/members/update-role.step.ts": {
+        "x": 0,
+        "y": 0
+      },
+      "src/auth/organizations/members/remove.step.ts": {
+        "x": 0,
+        "y": 652
       },
       "src/auth/organizations/members/add.step.ts": {
         "x": 3,
@@ -132,31 +155,7 @@
         "x": 0,
         "y": 428
       },
-      "src/auth/organizations/members/remove.step.ts": {
-        "x": 0,
-        "y": 652
-      },
-      "src/auth/organizations/create.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/list.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/get.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/delete.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/set-active.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/leave.step.ts": {
+      "src/auth/organizations/invitations/cancel.step.ts": {
         "x": 0,
         "y": 0
       },
@@ -164,13 +163,46 @@
         "x": 0,
         "y": 0
       },
-      "src/auth/organizations/invitations/cancel.step.ts": {
+      "src/auth/organizations/invitations/events/audit-invitation.step.ts": {
         "x": 0,
         "y": 0
       },
-      "src/auth/organizations/members/update-role.step.ts": {
-        "x": 0,
+      "src/auth/events/organization-audit.step.ts": {
+        "x": 533,
+        "y": 355
+      }
+    }
+  },
+  {
+    "id": "admin-management",
+    "config": {
+      "src/auth/events/admin-audit.step.ts": {
+        "x": 608,
+        "y": 535
+      },
+      "src/auth/admin/unban-user.step.ts": {
+        "x": 13,
         "y": 0
+      },
+      "src/auth/admin/set-role.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/admin/list-users.step.ts": {
+        "x": 27,
+        "y": 408
+      },
+      "src/auth/admin/get-user.step.ts": {
+        "x": 8,
+        "y": 612
+      },
+      "src/auth/admin/delete-user.step.ts": {
+        "x": 8,
+        "y": 816
+      },
+      "src/auth/admin/ban-user.step.ts": {
+        "x": 21,
+        "y": 1020
       }
     }
   }

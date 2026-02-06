@@ -111,10 +111,10 @@ export const handler: Handlers['CancelInvitation'] = async (req, { emit, logger 
     await emit({
       topic: 'organization.invitation.canceled',
       data: {
+        __topic: 'organization.invitation.canceled',
         invitationId,
         organizationId: orgId,
-        canceledByUserId: req.user.id,
-        canceledByUserEmail: req.user.email,
+        canceledAt: new Date().toISOString(),
       },
     })
 
