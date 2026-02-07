@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "postinstall": "motia install",
-    "dev": "motia dev",
+    "prepare": "python -m venv python_modules && source python_modules/bin/activate && pip install -r requirements.txt",
+    "dev": "source python_modules/bin/activate && motia dev",
     "start": "motia start",
     "generate-types": "motia generate-types",
     "build": "motia build",
@@ -29,10 +30,13 @@
     "@motiadev/plugin-streams": "0.17.14-beta.196",
     "@motiadev/plugin-ws": "0.17.14-beta.196",
     "better-auth": "^1.4.18",
+    "dotenv": "^16.5.0",
     "drizzle-orm": "^0.45.1",
     "motia": "0.17.14-beta.196",
+    "openai": "^5.7.0",
     "postgres": "^3.4.8",
     "tsx": "^4.21.0",
+    "weaviate-client": "^3.4.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
