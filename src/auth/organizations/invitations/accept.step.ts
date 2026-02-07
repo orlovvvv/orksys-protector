@@ -1,32 +1,12 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../../middleware/error-handler.middleware'
 import { authMiddleware } from '../../middleware/auth.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../../lib/state-request'
 
 const bodySchema = z.object({
   invitationId: z.string(),
 })
-
-// Type for Better Auth acceptInvitation response
-type MemberData = {
-  id: string
-  organizationId: string
-  userId: string
-  role: string
-  createdAt: string | Date
-}
-
-type OrganizationData = {
-  id: string
-  name: string
-  slug: string
-}
-
-type AcceptInvitationResult = {
-  member: MemberData
-  organization: OrganizationData
-}
 
 export const config: ApiRouteConfig = {
   name: 'AcceptInvitation',
@@ -34,7 +14,7 @@ export const config: ApiRouteConfig = {
   path: '/organizations/invitations/accept',
   method: 'POST',
   description: 'Accept an invitation to join an organization',
-  emits: ['organization.invitation.accepted'],
+  emits: ['organization.invitation.accept.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware],
   bodySchema,
@@ -65,7 +45,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['AcceptInvitation'] = async (req, { emit, logger }) => {
+export const handler: Handlers['AcceptInvitation'] = async (req, { emit, logger, state }) => {
   try {
     const { invitationId } = bodySchema.parse(req.body)
 
@@ -81,87 +61,42 @@ export const handler: Handlers['AcceptInvitation'] = async (req, { emit, logger 
       invitationId,
     })
 
-    // Call Better Auth's acceptInvitation endpoint
-    // Better Auth returns the member and organization data directly, or throws an error
-    let data: AcceptInvitationResult
-    try {
-      data = await auth.api.acceptInvitation({
-        body: {
-          invitationId,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as AcceptInvitationResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to accept invitation', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'organization.invitation.accept.requested',
+      data: {
+        requestId,
         invitationId,
-      })
+        authorization: authorization ?? '',
+        userId: req.user.id,
+        userEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist') || errorMessage.includes('invalid')) {
-        return {
-          status: 404,
-          body: { error: 'Invitation not found or invalid' },
-        }
-      }
-      if (errorMessage.includes('expired')) {
-        return {
-          status: 400,
-          body: { error: 'Invitation has expired' },
-        }
-      }
-      if (errorMessage.includes('email') || errorMessage.includes('does not match')) {
-        return {
-          status: 400,
-          body: { error: 'Invitation email does not match your email' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to accept invitation' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Invitation accepted successfully', {
-      invitationId,
-      userId: req.user.id,
-      organizationId: data.organization?.id,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'organization.invitation.accepted',
-      data: {
-        __topic: 'organization.invitation.accepted',
-        invitationId,
-        organizationId: data.organization?.id || '',
-        userId: req.user.id,
-        acceptedAt: new Date().toISOString(),
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        member: {
-          id: data.member?.id || '',
-          organizationId: data.member?.organizationId || '',
-          userId: data.member?.userId || '',
-          role: data.member?.role || 'member',
-          createdAt: new Date(data.member?.createdAt || new Date()).toISOString(),
-        },
-        organization: {
-          id: data.organization?.id || '',
-          name: data.organization?.name || '',
-          slug: data.organization?.slug || '',
-        },
-      },
+      body: (result as { status: 'completed'; data: { member: { id: string; organizationId: string; userId: string; role: string; createdAt: string }; organization: { id: string; name: string; slug: string } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

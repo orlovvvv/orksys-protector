@@ -1,14 +1,9 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { organizationMiddleware, organizationOwnerMiddleware } from '../middleware/organization.middleware'
-
-// Type for Better Auth deleteOrganization response
-type DeleteOrganizationResult = {
-  success: boolean
-}
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 export const config: ApiRouteConfig = {
   name: 'DeleteOrganization',
@@ -16,7 +11,7 @@ export const config: ApiRouteConfig = {
   path: '/organizations/:orgId',
   method: 'DELETE',
   description: 'Delete an organization (owner only)',
-  emits: ['organization.deleted'],
+  emits: ['organization.delete.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, organizationMiddleware, organizationOwnerMiddleware],
   responseSchema: {
@@ -42,7 +37,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['DeleteOrganization'] = async (req, { emit, logger }) => {
+export const handler: Handlers['DeleteOrganization'] = async (req, { emit, logger, state }) => {
   try {
     const orgId = req.pathParams?.orgId as string
 
@@ -58,62 +53,42 @@ export const handler: Handlers['DeleteOrganization'] = async (req, { emit, logge
       organizationId: orgId,
     })
 
-    // Call Better Auth's deleteOrganization endpoint
-    // Better Auth returns success/failure directly, or throws an error
-    try {
-      await auth.api.deleteOrganization({
-        body: {
-          organizationId: orgId,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as DeleteOrganizationResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Organization deletion failed', {
-        error: error.message || 'Unknown error',
-        organizationId: orgId,
-      })
+    // Generate a unique request ID
+    const requestId = generateRequestId()
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-        return {
-          status: 404,
-          body: { error: 'Organization not found' },
-        }
-      }
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
 
-      return {
-        status: 400,
-        body: { error: error.message || 'Organization deletion failed' },
-      }
-    }
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
 
-    logger.info('Organization deleted successfully', {
-      organizationId: orgId,
-      userId: req.user.id,
-    })
-
-    // Emit event for audit logging
+    // Emit the request event
     await emit({
-      topic: 'organization.deleted',
+      topic: 'organization.delete.requested',
       data: {
-        __topic: 'organization.deleted',
+        requestId,
         organizationId: orgId,
+        authorization: authorization ?? '',
         userId: req.user.id,
         userEmail: req.user.email,
       },
     })
 
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
+
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
+      return {
+        status: statusCode as 400 | 404 | 500,
+        body: { error: result.error },
+      }
+    }
+
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        success: true,
-        message: 'Organization deleted successfully',
-      },
+      body: (result as { status: 'completed'; data: { success: boolean; message: string } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

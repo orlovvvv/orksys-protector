@@ -18,8 +18,7 @@ export const config: ApiRouteConfig = {
   path: '/auth/api-keys',
   method: 'POST',
   description: 'Create a new API key for the authenticated user',
-  emits: ['api-key.creation.process'],
-  virtualSubscribes: ['api-key.creation.completed'],
+  emits: ['api-key.creation.process', 'api-key.creation.completed', 'api-key.creation.failed'],
   flows: ['api-key-management'],
   middleware: [errorHandlerMiddleware, authMiddleware],
   bodySchema,
@@ -41,15 +40,15 @@ export const config: ApiRouteConfig = {
 }
 
 export const handler: Handlers['CreateApiKey'] = async (req, { emit, logger }) => {
+  const session = req.session
+  const { name, expiresIn } = bodySchema.parse(req.body)
+
+  logger.info('API key creation request', {
+    userId: session.user.id,
+    name,
+  })
+
   try {
-    const session = req.session
-    const { name, expiresIn } = bodySchema.parse(req.body)
-
-    logger.info('API key creation request', {
-      userId: session.user.id,
-      name,
-    })
-
     // Emit event for background processing
     await emit({
       topic: 'api-key.creation.process',
@@ -79,9 +78,22 @@ export const handler: Handlers['CreateApiKey'] = async (req, { emit, logger }) =
     } | { error: { message: string } }
 
     if ('error' in apiKey) {
+      const errorMessage = apiKey.error.message || 'Failed to create API key'
+
       logger.error('API key creation failed', {
         userId: session.user.id,
-        error: apiKey.error.message,
+        error: errorMessage,
+      })
+
+      // Emit failure event
+      await emit({
+        topic: 'api-key.creation.failed',
+        data: {
+          userId: session.user.id,
+          name,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        },
       })
 
       return {
@@ -93,6 +105,20 @@ export const handler: Handlers['CreateApiKey'] = async (req, { emit, logger }) =
     logger.info('API key created successfully', {
       apiKeyId: apiKey.id,
       userId: session.user.id,
+    })
+
+    // Emit success event with API key data
+    await emit({
+      topic: 'api-key.creation.completed',
+      data: {
+        apiKeyId: apiKey.id,
+        key: apiKey.key,
+        userId: session.user.id,
+        name: apiKey.name,
+        prefix: apiKey.prefix,
+        expiresAt: apiKey.expiresAt?.toISOString() || null,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     // Return the full key (only time it's shown)
@@ -111,7 +137,18 @@ export const handler: Handlers['CreateApiKey'] = async (req, { emit, logger }) =
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error('API key creation error', {
       error: message,
-      userId: req.session?.user?.id,
+      userId: session.user.id,
+    })
+
+    // Emit failure event
+    await emit({
+      topic: 'api-key.creation.failed',
+      data: {
+        userId: session.user.id,
+        name,
+        error: message,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     return {

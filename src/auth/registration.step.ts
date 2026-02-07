@@ -15,8 +15,7 @@ export const config: ApiRouteConfig = {
   path: '/auth/register',
   method: 'POST',
   description: 'Register a new user with email and password',
-  emits: ['user.registration.process'],
-  virtualSubscribes: ['user.registration.completed'],
+  emits: ['user.registration.process', 'user.registration.completed', 'user.registration.failed'],
   flows: ['authentication'],
   middleware: [errorHandlerMiddleware],
   bodySchema,
@@ -33,6 +32,9 @@ export const config: ApiRouteConfig = {
       error: z.string(),
     }),
     409: z.object({
+      error: z.string(),
+    }),
+    500: z.object({
       error: z.string(),
     }),
   },
@@ -54,28 +56,46 @@ function extractClientIp(headers: Record<string, string | string[] | undefined>)
 }
 
 export const handler: Handlers['UserRegistration'] = async (req, { emit, logger }) => {
+  const { email, password, name } = bodySchema.parse(req.body)
+
+  logger.info('User registration request received', { email, name })
+
+  // Validate password format before emitting
+  if (password.length < 8) {
+    await emit({
+      topic: 'user.registration.failed',
+      data: {
+        email,
+        name,
+        error: 'Password must be at least 8 characters',
+        timestamp: new Date().toISOString(),
+      },
+    })
+    return {
+      status: 400,
+      body: { error: 'Password must be at least 8 characters' },
+    }
+  }
+
+  // Validate email format before emitting
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    await emit({
+      topic: 'user.registration.failed',
+      data: {
+        email,
+        name,
+        error: 'Invalid email format',
+        timestamp: new Date().toISOString(),
+      },
+    })
+    return {
+      status: 400,
+      body: { error: 'Invalid email format' },
+    }
+  }
+
   try {
-    const { email, password, name } = bodySchema.parse(req.body)
-
-    logger.info('User registration request received', { email, name })
-
-    // Validate password format before emitting
-    if (password.length < 8) {
-      return {
-        status: 400,
-        body: { error: 'Password must be at least 8 characters' },
-      }
-    }
-
-    // Validate email format before emitting
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return {
-        status: 400,
-        body: { error: 'Invalid email format' },
-      }
-    }
-
     // Emit event for background processing
     await emit({
       topic: 'user.registration.process',
@@ -100,13 +120,26 @@ export const handler: Handlers['UserRegistration'] = async (req, { emit, logger 
     })
 
     if (result.error) {
+      const errorMessage = result.error.message || 'Registration failed'
+
       logger.error('User registration failed', {
-        error: result.error.message,
+        error: errorMessage,
         email,
       })
 
-      const errorMessage = result.error.message?.toLowerCase() || ''
-      if (errorMessage.includes('email') || errorMessage.includes('exists') || errorMessage.includes('duplicate')) {
+      // Emit failure event
+      await emit({
+        topic: 'user.registration.failed',
+        data: {
+          email,
+          name,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        },
+      })
+
+      const errorLower = errorMessage.toLowerCase()
+      if (errorLower.includes('email') || errorLower.includes('exists') || errorLower.includes('duplicate')) {
         return {
           status: 409,
           body: { error: 'User with this email already exists' },
@@ -126,6 +159,18 @@ export const handler: Handlers['UserRegistration'] = async (req, { emit, logger 
       email: user.email,
     })
 
+    // Emit success event with user data
+    await emit({
+      topic: 'user.registration.completed',
+      data: {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        token: session?.token || null,
+        timestamp: new Date().toISOString(),
+      },
+    })
+
     return {
       status: 201,
       body: {
@@ -141,7 +186,18 @@ export const handler: Handlers['UserRegistration'] = async (req, { emit, logger 
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error('User registration error', {
       error: message,
-      email: req.body?.email,
+      email,
+    })
+
+    // Emit failure event
+    await emit({
+      topic: 'user.registration.failed',
+      data: {
+        email,
+        name,
+        error: message,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     return {

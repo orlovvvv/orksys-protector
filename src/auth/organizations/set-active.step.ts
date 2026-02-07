@@ -1,17 +1,12 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 const bodySchema = z.object({
   organizationId: z.string(),
 })
-
-// Type for Better Auth setActiveOrganization response
-type SetActiveOrganizationResult = {
-  activeOrganizationId: string
-}
 
 export const config: ApiRouteConfig = {
   name: 'SetActiveOrganization',
@@ -19,7 +14,7 @@ export const config: ApiRouteConfig = {
   path: '/organizations/active',
   method: 'POST',
   description: 'Set the active organization for the current session',
-  emits: ['organization.active.changed'],
+  emits: ['organization.setActive.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware],
   bodySchema,
@@ -46,7 +41,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['SetActiveOrganization'] = async (req, { emit, logger }) => {
+export const handler: Handlers['SetActiveOrganization'] = async (req, { emit, logger, state }) => {
   try {
     const { organizationId } = bodySchema.parse(req.body)
 
@@ -62,63 +57,42 @@ export const handler: Handlers['SetActiveOrganization'] = async (req, { emit, lo
       organizationId,
     })
 
-    // Call Better Auth's setActiveOrganization endpoint
-    // Better Auth returns the active organization ID directly, or throws an error
-    let data: SetActiveOrganizationResult
-    try {
-      data = await auth.api.setActiveOrganization({
-        body: {
-          organizationId,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as SetActiveOrganizationResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to set active organization', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'organization.setActive.requested',
+      data: {
+        requestId,
         organizationId,
-      })
+        authorization: authorization ?? '',
+        userId: req.user.id,
+        userEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist') || errorMessage.includes('not a member')) {
-        return {
-          status: 403,
-          body: { error: 'You are not a member of this organization' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to set active organization' },
+        status: statusCode as 400 | 403 | 404 | 500,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Active organization set successfully', {
-      userId: req.user.id,
-      organizationId: data.activeOrganizationId,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'organization.active.changed',
-      data: {
-        __topic: 'organization.active.changed',
-        userId: req.user.id,
-        userEmail: req.user.email,
-        organizationId: data.activeOrganizationId,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        success: true,
-        activeOrganizationId: data.activeOrganizationId,
-      },
+      body: (result as { status: 'completed'; data: { success: boolean; activeOrganizationId: string } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

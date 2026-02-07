@@ -1,25 +1,13 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { adminMiddleware } from '../middleware/admin.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 const bodySchema = z.object({
   userId: z.string(),
 })
-
-// Type for Better Auth removeUser response
-type RemoveUserResult = {
-  success: boolean
-}
-
-// Type for emit data
-type UserDeletedEmitData = {
-  userId: string
-  deletedByUserId: string
-  deletedByUserEmail: string
-}
 
 export const config: ApiRouteConfig = {
   name: 'AdminDeleteUser',
@@ -27,7 +15,7 @@ export const config: ApiRouteConfig = {
   path: '/admin/users/delete',
   method: 'POST',
   description: 'Delete a user (admin only)',
-  emits: ['admin.user.deleted'],
+  emits: ['admin.user.delete.requested'],
   flows: ['admin-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, adminMiddleware],
   bodySchema,
@@ -51,7 +39,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['AdminDeleteUser'] = async (req, { emit, logger }) => {
+export const handler: Handlers['AdminDeleteUser'] = async (req, { emit, logger, state }) => {
   try {
     const { userId } = bodySchema.parse(req.body)
 
@@ -79,54 +67,42 @@ export const handler: Handlers['AdminDeleteUser'] = async (req, { emit, logger }
       targetUserId: userId,
     })
 
-    // Call Better Auth's admin removeUser endpoint
-    // Better Auth returns success/failure directly, or throws an error
-    try {
-      await auth.api.removeUser({
-        body: {
-          userId,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as RemoveUserResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to delete user', {
-        error: error.message || 'Unknown error',
-        targetUserId: userId,
-      })
+    // Generate a unique request ID
+    const requestId = generateRequestId()
 
+    // Initialize the request in state
+    await initRequest(state, 'admin-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'admin.user.delete.requested',
+      data: {
+        requestId,
+        targetUserId: userId,
+        authorization: authorization ?? '',
+        adminUserId: req.user.id,
+        adminUserEmail: req.user.email,
+      },
+    })
+
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'admin-requests', requestId)
+
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to delete user' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Admin deleted user successfully', {
-      adminUserId: req.user.id,
-      targetUserId: userId,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'admin.user.deleted',
-      data: {
-        __topic: 'admin.user.deleted',
-        userId,
-        deletedByUserId: req.user.id,
-        deletedByUserEmail: req.user.email,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        success: true,
-        message: 'User deleted successfully',
-      },
+      body: (result as { status: 'completed'; data: { success: boolean; message: string } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

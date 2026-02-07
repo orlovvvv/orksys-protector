@@ -1,8 +1,8 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 const bodySchema = z.object({
   name: z.string().min(2, 'Organization name must be at least 2 characters'),
@@ -12,21 +12,22 @@ const bodySchema = z.object({
   logo: z.string().url().optional(),
 })
 
-// Type for Better Auth createOrganization response
-// Better Auth returns the organization data directly on success, throws on error
-type CreateOrganizationResult = {
-  id: string
-  name: string
-  slug: string
-  logo: string | null
-  createdAt: string | Date
-  member?: {
+// Response data type from the processing step
+type CreateOrgResponseData = {
+  organization: {
+    id: string
+    name: string
+    slug: string
+    logo: string | null
+    createdAt: string
+  }
+  member: {
     id: string
     organizationId: string
     userId: string
     role: string
-    createdAt: string | Date
-  }
+    createdAt: string
+  } | null
 }
 
 export const config: ApiRouteConfig = {
@@ -35,8 +36,12 @@ export const config: ApiRouteConfig = {
   path: '/organizations',
   method: 'POST',
   description: 'Create a new organization',
-  emits: ['organization.created'],
-  virtualSubscribes: ['organization.creation.completed'],
+  emits: [
+    {
+      topic: 'organization.create.requested',
+      label: 'Organization creation requested',
+    },
+  ],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware],
   bodySchema,
@@ -55,7 +60,7 @@ export const config: ApiRouteConfig = {
         userId: z.string(),
         role: z.string(),
         createdAt: z.string(),
-      }),
+      }).nullish(),
     }),
     400: z.object({
       error: z.string(),
@@ -72,7 +77,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['CreateOrganization'] = async (req, { emit, logger }) => {
+export const handler: Handlers['CreateOrganization'] = async (req, { emit, logger, state }) => {
   try {
     const { name, slug, logo } = bodySchema.parse(req.body)
 
@@ -89,78 +94,44 @@ export const handler: Handlers['CreateOrganization'] = async (req, { emit, logge
       slug,
     })
 
-    // Call Better Auth's createOrganization endpoint
-    // Better Auth returns the organization data directly, or throws an error
-    // We use try-catch to handle errors as Better Auth doesn't return { error, data }
-    let orgData: CreateOrganizationResult
-    try {
-      orgData = await auth.api.createOrganization({
-        body: {
-          name,
-          slug,
-          logo,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as CreateOrganizationResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string; statusCode?: number; status?: number }
-      logger.error('Organization creation failed', {
-        error: error.message || 'Unknown error',
-      })
+    // Generate a unique request ID
+    const requestId = generateRequestId()
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('slug') || errorMessage.includes('exists') || errorMessage.includes('duplicate')) {
-        return {
-          status: 409,
-          body: { error: 'Organization with this slug already exists' },
-        }
-      }
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
 
-      return {
-        status: 400,
-        body: { error: error.message || 'Organization creation failed' },
-      }
-    }
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
 
-    logger.info('Organization created successfully', {
-      organizationId: orgData.id,
-      userId: req.user.id,
-    })
-
-    // Emit event for background processing
+    // Emit the request event
     await emit({
-      topic: 'organization.created',
+      topic: 'organization.create.requested',
       data: {
-        __topic: 'organization.created',
-        organizationId: orgData.id,
-        organizationName: orgData.name,
+        requestId,
+        name,
+        slug,
+        logo: logo ?? null,
+        authorization: authorization ?? '',
         userId: req.user.id,
         userEmail: req.user.email,
       },
     })
 
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult<CreateOrgResponseData>(state, 'org-requests', requestId)
+
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
+      return {
+        status: statusCode as 400 | 409 | 500,
+        body: { error: result.error },
+      }
+    }
+
+    // Return the successful result - use type assertion since we've already checked for failed status
     return {
       status: 201,
-      body: {
-        organization: {
-          id: orgData.id,
-          name: orgData.name,
-          slug: orgData.slug,
-          logo: orgData.logo ?? null,
-          createdAt: new Date(orgData.createdAt).toISOString(),
-        },
-        member: orgData.member ? {
-          id: orgData.member.id,
-          organizationId: orgData.member.organizationId,
-          userId: orgData.member.userId,
-          role: orgData.member.role,
-          createdAt: new Date(orgData.member.createdAt).toISOString(),
-        } : null,
-      },
+      body: (result as { status: 'completed'; data: CreateOrgResponseData }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

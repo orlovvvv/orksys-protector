@@ -1,12 +1,12 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../../lib/better-auth/auth'
 import { db } from '../../../lib/db/drizzle'
 import { user } from '../../../lib/db/drizzle'
 import { eq } from 'drizzle-orm'
 import { errorHandlerMiddleware } from '../../middleware/error-handler.middleware'
 import { authMiddleware } from '../../middleware/auth.middleware'
 import { organizationMiddleware, organizationAdminMiddleware } from '../../middleware/organization.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../../lib/state-request'
 
 const bodySchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -15,24 +15,13 @@ const bodySchema = z.object({
   }),
 })
 
-// Type for Better Auth addMember response
-type MemberData = {
-  id: string
-  organizationId: string
-  userId: string
-  role: string
-  createdAt: string | Date
-}
-
-type AddMemberResult = MemberData
-
 export const config: ApiRouteConfig = {
   name: 'AddOrganizationMember',
   type: 'api',
   path: '/organizations/:orgId/members',
   method: 'POST',
   description: 'Add a member to an organization',
-  emits: ['organization.member.added'],
+  emits: ['organization.member.add.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, organizationMiddleware, organizationAdminMiddleware],
   bodySchema,
@@ -58,10 +47,13 @@ export const config: ApiRouteConfig = {
     404: z.object({
       error: z.string(),
     }),
+    500: z.object({
+      error: z.string(),
+    }),
   },
 }
 
-export const handler: Handlers['AddOrganizationMember'] = async (req, { emit, logger }) => {
+export const handler: Handlers['AddOrganizationMember'] = async (req, { emit, logger, state }) => {
   try {
     const orgId = req.pathParams?.orgId as string
     const { email, role } = bodySchema.parse(req.body)
@@ -101,83 +93,45 @@ export const handler: Handlers['AddOrganizationMember'] = async (req, { emit, lo
 
     const targetUser = users[0]
 
-    // Call Better Auth's addMember endpoint
-    // Better Auth returns the member data directly, or throws an error
-    let memberData: MemberData
-    try {
-      memberData = await auth.api.addMember({
-        body: {
-          organizationId: orgId,
-          userId: targetUser.id,
-          role,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as AddMemberResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to add member', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'organization.member.add.requested',
+      data: {
+        requestId,
         organizationId: orgId,
         targetUserId: targetUser.id,
-      })
+        targetUserEmail: targetUser.email,
+        role,
+        authorization: authorization ?? '',
+        userId: req.user.id,
+        userEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-        return {
-          status: 404,
-          body: { error: 'Organization or user not found' },
-        }
-      }
-      if (errorMessage.includes('already') || errorMessage.includes('exists')) {
-        return {
-          status: 400,
-          body: { error: 'User is already a member of this organization' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to add member' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Member added successfully', {
-      organizationId: orgId,
-      userId: req.user.id,
-      targetUserId: targetUser.id,
-      role,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'organization.member.added',
-      data: {
-        __topic: 'organization.member.added',
-        organizationId: orgId,
-        memberId: memberData.id,
-        addedUserId: targetUser.id,
-        addedUserEmail: targetUser.email,
-        role,
-        addedByUserId: req.user.id,
-        addedByUserEmail: req.user.email,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        member: {
-          id: memberData.id,
-          organizationId: memberData.organizationId,
-          userId: memberData.userId,
-          role: memberData.role,
-          createdAt: new Date(memberData.createdAt).toISOString(),
-        },
-      },
+      body: (result as { status: 'completed'; data: { member: { id: string; organizationId: string; userId: string; role: string; createdAt: string } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

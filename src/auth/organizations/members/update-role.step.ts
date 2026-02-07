@@ -1,9 +1,9 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../../middleware/error-handler.middleware'
 import { authMiddleware } from '../../middleware/auth.middleware'
 import { organizationMiddleware, organizationOwnerMiddleware } from '../../middleware/organization.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../../lib/state-request'
 
 const bodySchema = z.object({
   role: z.enum(['owner', 'admin', 'member'], {
@@ -11,24 +11,13 @@ const bodySchema = z.object({
   }),
 })
 
-// Type for Better Auth updateMemberRole response
-type MemberData = {
-  id: string
-  organizationId: string
-  userId: string
-  role: string
-  createdAt: string | Date
-}
-
-type UpdateMemberRoleResult = MemberData
-
 export const config: ApiRouteConfig = {
   name: 'UpdateMemberRole',
   type: 'api',
   path: '/organizations/:orgId/members/:memberId/role',
   method: 'PATCH',
   description: 'Update a member role in an organization (owner only)',
-  emits: ['organization.member.roleUpdated'],
+  emits: ['organization.member.roleUpdate.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, organizationMiddleware, organizationOwnerMiddleware],
   bodySchema,
@@ -57,7 +46,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['UpdateMemberRole'] = async (req, { emit, logger }) => {
+export const handler: Handlers['UpdateMemberRole'] = async (req, { emit, logger, state }) => {
   try {
     const orgId = req.pathParams?.orgId as string
     const memberId = req.pathParams?.memberId as string
@@ -77,81 +66,44 @@ export const handler: Handlers['UpdateMemberRole'] = async (req, { emit, logger 
       newRole: role,
     })
 
-    // Call Better Auth's updateMemberRole endpoint
-    // Better Auth returns the updated member data directly, or throws an error
-    let memberData: MemberData
-    try {
-      memberData = await auth.api.updateMemberRole({
-        body: {
-          organizationId: orgId,
-          userIdOrMemberId: memberId,
-          role,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as UpdateMemberRoleResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to update member role', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'organization.member.roleUpdate.requested',
+      data: {
+        requestId,
         organizationId: orgId,
         memberId,
-      })
+        role,
+        authorization: authorization ?? '',
+        userId: req.user.id,
+        userEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-        return {
-          status: 404,
-          body: { error: 'Member not found' },
-        }
-      }
-      if (errorMessage.includes('owner') || errorMessage.includes('last owner')) {
-        return {
-          status: 400,
-          body: { error: 'Cannot change the owner role or there must be at least one owner' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to update member role' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Member role updated successfully', {
-      organizationId: orgId,
-      userId: req.user.id,
-      memberId,
-      newRole: role,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'organization.member.roleUpdated',
-      data: {
-        __topic: 'organization.member.roleUpdated',
-        organizationId: orgId,
-        memberId,
-        newRole: role,
-        updatedByUserId: req.user.id,
-        updatedByUserEmail: req.user.email,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        member: {
-          id: memberData.id,
-          organizationId: memberData.organizationId,
-          userId: memberData.userId,
-          role: memberData.role,
-          createdAt: new Date(memberData.createdAt).toISOString(),
-        },
-      },
+      body: (result as { status: 'completed'; data: { member: { id: string; organizationId: string; userId: string; role: string; createdAt: string } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

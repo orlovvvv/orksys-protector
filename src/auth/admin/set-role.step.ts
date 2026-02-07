@@ -1,9 +1,9 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { adminMiddleware } from '../middleware/admin.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 const bodySchema = z.object({
   userId: z.string(),
@@ -12,33 +12,13 @@ const bodySchema = z.object({
   }),
 })
 
-// Type for Better Auth setRole response
-type UserWithRole = {
-  id: string
-  name: string | null
-  email: string
-  role: string
-}
-
-type SetRoleResult = {
-  user: UserWithRole
-}
-
-// Type for emit data
-type RoleChangedEmitData = {
-  userId: string
-  newRole: string
-  changedByUserId: string
-  changedByUserEmail: string
-}
-
 export const config: ApiRouteConfig = {
   name: 'AdminSetRole',
   type: 'api',
   path: '/admin/users/set-role',
   method: 'POST',
   description: 'Set user role (admin only)',
-  emits: ['admin.user.roleChanged'],
+  emits: ['admin.user.setRole.requested'],
   flows: ['admin-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, adminMiddleware],
   bodySchema,
@@ -69,7 +49,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['AdminSetRole'] = async (req, { emit, logger }) => {
+export const handler: Handlers['AdminSetRole'] = async (req, { emit, logger, state }) => {
   try {
     const { userId, role } = bodySchema.parse(req.body)
 
@@ -86,78 +66,43 @@ export const handler: Handlers['AdminSetRole'] = async (req, { emit, logger }) =
       newRole: role,
     })
 
-    // Call Better Auth's admin setRole endpoint
-    // Better Auth returns the updated user data directly, or throws an error
-    let result: SetRoleResult
-    try {
-      result = await auth.api.setRole({
-        body: {
-          userId,
-          role,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as SetRoleResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to set user role', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'admin-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'admin.user.setRole.requested',
+      data: {
+        requestId,
         targetUserId: userId,
-      })
+        role,
+        authorization: authorization ?? '',
+        adminUserId: req.user.id,
+        adminUserEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-        return {
-          status: 404,
-          body: { error: 'User not found' },
-        }
-      }
-      if (errorMessage.includes('yourself') || errorMessage.includes('own')) {
-        return {
-          status: 400,
-          body: { error: 'Cannot change your own role' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'admin-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to set user role' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    const userData = result.user
-
-    logger.info('Admin set user role successfully', {
-      adminUserId: req.user.id,
-      targetUserId: userId,
-      newRole: userData.role,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'admin.user.roleChanged',
-      data: {
-        __topic: 'admin.user.roleChanged',
-        userId,
-        newRole: userData.role,
-        changedByUserId: req.user.id,
-        changedByUserEmail: req.user.email,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        user: {
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-        },
-      },
+      body: (result as { status: 'completed'; data: { user: { id: string; name: string | null; email: string; role: string } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

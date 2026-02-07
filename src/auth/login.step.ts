@@ -30,8 +30,7 @@ export const config: ApiRouteConfig = {
   path: '/auth/login',
   method: 'POST',
   description: 'Login with email and password',
-  emits: ['user.login.process'],
-  virtualSubscribes: ['user.login.completed'],
+  emits: ['user.login.process', 'user.login.completed', 'user.login.failed'],
   flows: ['authentication'],
   middleware: [errorHandlerMiddleware],
   bodySchema,
@@ -47,16 +46,19 @@ export const config: ApiRouteConfig = {
     401: z.object({
       error: z.string(),
     }),
+    500: z.object({
+      error: z.string(),
+    }),
   },
 }
 
 export const handler: Handlers['UserLogin'] = async (req, { emit, logger }) => {
+  const { email, password } = bodySchema.parse(req.body)
+  const ipAddress = extractClientIp(req.headers) ?? 'unknown'
+
+  logger.info('User login request received', { email, ipAddress })
+
   try {
-    const { email, password } = bodySchema.parse(req.body)
-    const ipAddress = extractClientIp(req.headers)
-
-    logger.info('User login request received', { email, ipAddress })
-
     // Emit event for background processing
     await emit({
       topic: 'user.login.process',
@@ -77,9 +79,22 @@ export const handler: Handlers['UserLogin'] = async (req, { emit, logger }) => {
     })
 
     if (result.error) {
+      const errorMessage = result.error.message || 'Login failed'
+
       logger.warn('User login failed', {
         email,
-        error: result.error.message,
+        error: errorMessage,
+      })
+
+      // Emit failure event
+      await emit({
+        topic: 'user.login.failed',
+        data: {
+          email,
+          error: errorMessage,
+          ipAddress,
+          timestamp: new Date().toISOString(),
+        },
       })
 
       return {
@@ -93,6 +108,19 @@ export const handler: Handlers['UserLogin'] = async (req, { emit, logger }) => {
     logger.info('User logged in successfully', {
       userId: user.id,
       email: user.email,
+    })
+
+    // Emit success event with user data
+    await emit({
+      topic: 'user.login.completed',
+      data: {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        token: session?.token || null,
+        ipAddress,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     return {
@@ -110,7 +138,18 @@ export const handler: Handlers['UserLogin'] = async (req, { emit, logger }) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     logger.error('User login error', {
       error: message,
-      email: req.body?.email,
+      email,
+    })
+
+    // Emit failure event
+    await emit({
+      topic: 'user.login.failed',
+      data: {
+        email,
+        error: message,
+        ipAddress,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     return {

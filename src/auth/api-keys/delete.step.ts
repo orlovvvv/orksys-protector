@@ -10,8 +10,7 @@ export const config: ApiRouteConfig = {
   path: '/auth/api-keys/:id',
   method: 'DELETE',
   description: 'Delete an API key owned by the authenticated user',
-  emits: ['api-key.deletion.process'],
-  virtualSubscribes: ['api-key.deletion.completed'],
+  emits: ['api-key.deletion.process', 'api-key.deletion.completed', 'api-key.deletion.failed'],
   flows: ['api-key-management'],
   middleware: [errorHandlerMiddleware, authMiddleware],
   responseSchema: {
@@ -34,33 +33,57 @@ export const config: ApiRouteConfig = {
 }
 
 export const handler: Handlers['DeleteApiKey'] = async (req, { emit, logger }) => {
-  try {
-    const session = req.session
-    const apiKeyId = req.pathParams?.id
+  const session = req.session
+  const apiKeyId = req.pathParams?.id
 
-    // Validate the API key ID
-    if (!apiKeyId) {
-      return {
-        status: 400,
-        body: { error: 'API key ID is required' },
-      }
-    }
-
-    logger.info('API key deletion request', {
-      userId: session.user.id,
-      apiKeyId,
+  // Validate the API key ID
+  if (!apiKeyId) {
+    await emit({
+      topic: 'api-key.deletion.failed',
+      data: {
+        userId: session.user.id,
+        apiKeyId: '',
+        error: 'API key ID is required',
+        timestamp: new Date().toISOString(),
+      },
     })
+    return {
+      status: 400,
+      body: { error: 'API key ID is required' },
+    }
+  }
 
+  logger.info('API key deletion request', {
+    userId: session.user.id,
+    apiKeyId,
+  })
+
+  try {
     // First, verify the user owns this API key by listing their keys
     const listResult = await auth.api.listApiKeys({
       headers: req.headers as any,
     })
 
     if (listResult.error) {
+      const errorMessage = listResult.error.message || 'Failed to verify API key ownership'
+
       logger.error('Failed to verify API key ownership', {
         userId: session.user.id,
         apiKeyId,
+        error: errorMessage,
       })
+
+      // Emit failure event
+      await emit({
+        topic: 'api-key.deletion.failed',
+        data: {
+          userId: session.user.id,
+          apiKeyId,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        },
+      })
+
       return {
         status: 500,
         body: { error: 'Failed to verify API key ownership' },
@@ -72,13 +95,27 @@ export const handler: Handlers['DeleteApiKey'] = async (req, { emit, logger }) =
     const ownsKey = apiKeys.some((key) => key.id === apiKeyId && key.userId === session.user.id)
 
     if (!ownsKey) {
+      const error = 'You do not have permission to delete this API key'
+
       logger.warn('Attempted to delete API key not owned by user', {
         userId: session.user.id,
         apiKeyId,
       })
+
+      // Emit failure event
+      await emit({
+        topic: 'api-key.deletion.failed',
+        data: {
+          userId: session.user.id,
+          apiKeyId,
+          error,
+          timestamp: new Date().toISOString(),
+        },
+      })
+
       return {
         status: 403,
-        body: { error: 'You do not have permission to delete this API key' },
+        body: { error },
       }
     }
 
@@ -97,15 +134,28 @@ export const handler: Handlers['DeleteApiKey'] = async (req, { emit, logger }) =
     })
 
     if (result.error) {
+      const errorMessage = result.error.message || 'Failed to delete API key'
+
       logger.error('Failed to delete API key', {
         userId: session.user.id,
         apiKeyId,
-        error: result.error.message,
+        error: errorMessage,
+      })
+
+      // Emit failure event
+      await emit({
+        topic: 'api-key.deletion.failed',
+        data: {
+          userId: session.user.id,
+          apiKeyId,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        },
       })
 
       // Check if it's a "not found" error
-      const errorMessage = result.error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
+      const errorLower = errorMessage.toLowerCase()
+      if (errorLower.includes('not found') || errorLower.includes('does not exist')) {
         return {
           status: 404,
           body: { error: 'API key not found' },
@@ -123,16 +173,38 @@ export const handler: Handlers['DeleteApiKey'] = async (req, { emit, logger }) =
       userId: session.user.id,
     })
 
+    // Emit success event
+    await emit({
+      topic: 'api-key.deletion.completed',
+      data: {
+        apiKeyId,
+        userId: session.user.id,
+        timestamp: new Date().toISOString(),
+      },
+    })
+
     return {
       status: 200,
       body: { success: true },
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
+
     logger.error('API key deletion error', {
       error: message,
-      apiKeyId: req.pathParams?.id,
-      userId: req.session?.user?.id,
+      apiKeyId,
+      userId: session.user.id,
+    })
+
+    // Emit failure event
+    await emit({
+      topic: 'api-key.deletion.failed',
+      data: {
+        userId: session.user.id,
+        apiKeyId,
+        error: message,
+        timestamp: new Date().toISOString(),
+      },
     })
 
     return {

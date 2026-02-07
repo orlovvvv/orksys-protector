@@ -19,161 +19,6 @@
     }
   },
   {
-    "id": "authentication",
-    "config": {
-      "src/auth/registration.step.ts": {
-        "x": -12,
-        "y": -81
-      },
-      "src/auth/me.step.ts": {
-        "x": 399,
-        "y": 262
-      },
-      "src/auth/login.step.ts": {
-        "x": 77,
-        "y": 490
-      },
-      "src/auth/events/login-completed.step.ts": {
-        "x": 744,
-        "y": 355
-      },
-      "src/auth/events/registration-completed.step.ts": {
-        "x": 687,
-        "y": 0
-      },
-      "src/auth/events/registration-failed.step.ts": {
-        "x": 740,
-        "y": 219
-      },
-      "src/auth/events/registration-processing.step.ts": {
-        "x": 347,
-        "y": 83
-      },
-      "src/auth/events/login-processing.step.ts": {
-        "x": 380,
-        "y": 482
-      },
-      "src/auth/events/welcome-email-sent.step.ts": {
-        "x": 1387,
-        "y": 10
-      },
-      "src/auth/events/welcome-email-processing.step.ts": {
-        "x": 1037,
-        "y": 0
-      },
-      "src/auth/events/login-failed.step.ts": {
-        "x": 741,
-        "y": 559
-      }
-    }
-  },
-  {
-    "id": "api-key-management",
-    "config": {
-      "src/auth/api-keys/list.step.ts": {
-        "x": 11,
-        "y": 0
-      },
-      "src/auth/api-keys/delete.step.ts": {
-        "x": 0,
-        "y": 204
-      },
-      "src/auth/api-keys/create.step.ts": {
-        "x": 0,
-        "y": 428
-      },
-      "src/auth/events/api-key-create-completed.step.ts": {
-        "x": 846,
-        "y": 837
-      },
-      "src/auth/events/api-key-delete-completed.step.ts": {
-        "x": 848,
-        "y": 134
-      },
-      "src/auth/events/api-key-failed.step.ts": {
-        "x": 1037,
-        "y": 361
-      },
-      "src/auth/events/api-key-create-processing.step.ts": {
-        "x": 285,
-        "y": 785
-      },
-      "src/auth/events/api-key-delete-processing.step.ts": {
-        "x": 402,
-        "y": 119
-      }
-    }
-  },
-  {
-    "id": "organization-management",
-    "config": {
-      "src/auth/organizations/update.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/set-active.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/list.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/leave.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/get.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/delete.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/create.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/members/update-role.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/members/remove.step.ts": {
-        "x": 0,
-        "y": 652
-      },
-      "src/auth/organizations/members/add.step.ts": {
-        "x": 3,
-        "y": 0
-      },
-      "src/auth/organizations/invitations/list.step.ts": {
-        "x": 0,
-        "y": 204
-      },
-      "src/auth/organizations/invitations/create.step.ts": {
-        "x": 0,
-        "y": 428
-      },
-      "src/auth/organizations/invitations/cancel.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/invitations/accept.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/organizations/invitations/events/audit-invitation.step.ts": {
-        "x": 0,
-        "y": 0
-      },
-      "src/auth/events/organization-audit.step.ts": {
-        "x": 533,
-        "y": 355
-      }
-    }
-  },
-  {
     "id": "admin-management",
     "config": {
       "src/auth/events/admin-audit.step.ts": {
@@ -203,6 +48,221 @@
       "src/auth/admin/ban-user.step.ts": {
         "x": 21,
         "y": 1020
+      },
+      "src/auth/admin/events/set-role-processing.step.ts": {
+        "x": 276,
+        "y": 34
+      },
+      "src/auth/admin/events/ban-user-processing.step.ts": {
+        "x": 287,
+        "y": 238
+      },
+      "src/auth/admin/events/delete-user-processing.step.ts": {
+        "x": 286,
+        "y": 850
+      },
+      "src/auth/admin/events/unban-user-processing.step.ts": {
+        "x": 279,
+        "y": 1054
+      }
+    }
+  },
+  {
+    "id": "organization-management",
+    "config": {
+      "src/auth/organizations/update.step.ts": {
+        "x": 33,
+        "y": 0
+      },
+      "src/auth/organizations/set-active.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/organizations/list.step.ts": {
+        "x": 3,
+        "y": 428
+      },
+      "src/auth/organizations/leave.step.ts": {
+        "x": 12,
+        "y": 632
+      },
+      "src/auth/organizations/get.step.ts": {
+        "x": 41,
+        "y": 836
+      },
+      "src/auth/organizations/delete.step.ts": {
+        "x": 29,
+        "y": 1040
+      },
+      "src/auth/organizations/create.step.ts": {
+        "x": 59,
+        "y": 1244
+      },
+      "src/auth/organizations/members/update-role.step.ts": {
+        "x": 0,
+        "y": 1448
+      },
+      "src/auth/organizations/members/remove.step.ts": {
+        "x": 0,
+        "y": 652
+      },
+      "src/auth/organizations/invitations/list.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/organizations/invitations/create.step.ts": {
+        "x": 0,
+        "y": 428
+      },
+      "src/auth/organizations/invitations/cancel.step.ts": {
+        "x": 0,
+        "y": 2568
+      },
+      "src/auth/organizations/invitations/accept.step.ts": {
+        "x": 0,
+        "y": 2792
+      },
+      "src/auth/organizations/invitations/events/audit-invitation.step.ts": {
+        "x": 586,
+        "y": 2562
+      },
+      "src/auth/events/organization-audit.step.ts": {
+        "x": 685,
+        "y": 372
+      },
+      "src/auth/organizations/events/set-active-processing.step.ts": {
+        "x": 350,
+        "y": 34
+      },
+      "src/auth/organizations/events/leave-processing.step.ts": {
+        "x": 350,
+        "y": 248
+      },
+      "src/auth/organizations/events/delete-processing.step.ts": {
+        "x": 350,
+        "y": 656
+      },
+      "src/auth/organizations/events/create-processing.step.ts": {
+        "x": 350,
+        "y": 1064
+      },
+      "src/auth/organizations/events/update-processing.step.ts": {
+        "x": 350,
+        "y": 1268
+      },
+      "src/auth/organizations/members/events/update-role-processing.step.ts": {
+        "x": 350,
+        "y": 1492
+      },
+      "src/auth/organizations/members/events/remove-processing.step.ts": {
+        "x": 350,
+        "y": 1726
+      },
+      "src/auth/organizations/members/events/add-processing.step.ts": {
+        "x": 350,
+        "y": 2164
+      },
+      "src/auth/organizations/invitations/events/accept-processing.step.ts": {
+        "x": 350,
+        "y": 2378
+      },
+      "src/auth/organizations/invitations/events/cancel-processing.step.ts": {
+        "x": 350,
+        "y": 2602
+      },
+      "src/auth/organizations/invitations/events/create-processing.step.ts": {
+        "x": 350,
+        "y": 2826
+      },
+      "src/auth/organizations/members/add.step.ts": {
+        "x": 3,
+        "y": 0
+      }
+    }
+  },
+  {
+    "id": "api-key-management",
+    "config": {
+      "src/auth/events/api-key-failed.step.ts": {
+        "x": 1037,
+        "y": 361
+      },
+      "src/auth/events/api-key-delete-completed.step.ts": {
+        "x": 848,
+        "y": 134
+      },
+      "src/auth/events/api-key-create-completed.step.ts": {
+        "x": 846,
+        "y": 837
+      },
+      "src/auth/api-keys/list.step.ts": {
+        "x": 11,
+        "y": 0
+      },
+      "src/auth/api-keys/delete.step.ts": {
+        "x": 0,
+        "y": 204
+      },
+      "src/auth/api-keys/create.step.ts": {
+        "x": 0,
+        "y": 428
+      },
+      "src/auth/api-keys/events/audit-deletion.step.ts": {
+        "x": 37,
+        "y": 680
+      },
+      "src/auth/api-keys/events/audit-creation.step.ts": {
+        "x": 36,
+        "y": 831
+      }
+    }
+  },
+  {
+    "id": "authentication",
+    "config": {
+      "src/auth/registration.step.ts": {
+        "x": -101,
+        "y": -60
+      },
+      "src/auth/me.step.ts": {
+        "x": -22,
+        "y": 152
+      },
+      "src/auth/login.step.ts": {
+        "x": -22,
+        "y": 354
+      },
+      "src/auth/users/events/audit-registration.step.ts": {
+        "x": 394,
+        "y": -230
+      },
+      "src/auth/users/events/audit-login.step.ts": {
+        "x": 647,
+        "y": 413
+      },
+      "src/auth/events/welcome-email-sent.step.ts": {
+        "x": 1481,
+        "y": -124
+      },
+      "src/auth/events/welcome-email-processing.step.ts": {
+        "x": 1097,
+        "y": -134
+      },
+      "src/auth/events/registration-failed.step.ts": {
+        "x": 632,
+        "y": 75
+      },
+      "src/auth/events/registration-completed.step.ts": {
+        "x": 704,
+        "y": -135
+      },
+      "src/auth/events/login-failed.step.ts": {
+        "x": 649,
+        "y": 559
+      },
+      "src/auth/events/login-completed.step.ts": {
+        "x": 647,
+        "y": 269
       }
     }
   }

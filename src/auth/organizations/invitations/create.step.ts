@@ -1,9 +1,9 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../../middleware/error-handler.middleware'
 import { authMiddleware } from '../../middleware/auth.middleware'
 import { organizationMiddleware, organizationAdminMiddleware } from '../../middleware/organization.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../../lib/state-request'
 
 const bodySchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -13,25 +13,13 @@ const bodySchema = z.object({
   expiresIn: z.number().optional().default(7 * 24 * 60 * 60), // 7 days default
 })
 
-// Type for Better Auth createInvitation response
-type InvitationData = {
-  id: string
-  organizationId: string
-  email: string
-  role: string
-  status: string
-  expiresAt: string | Date
-  createdAt: string | Date
-  inviterId: string
-}
-
 export const config: ApiRouteConfig = {
   name: 'CreateInvitation',
   type: 'api',
   path: '/organizations/:orgId/invitations',
   method: 'POST',
   description: 'Create an invitation to join an organization',
-  emits: ['organization.invitation.created'],
+  emits: ['organization.invitation.create.requested'],
   flows: ['organization-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, organizationMiddleware, organizationAdminMiddleware],
   bodySchema,
@@ -59,7 +47,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['CreateInvitation'] = async (req, { emit, logger }) => {
+export const handler: Handlers['CreateInvitation'] = async (req, { emit, logger, state }) => {
   try {
     const orgId = req.pathParams?.orgId as string
     const { email, role, expiresIn } = bodySchema.parse(req.body)
@@ -78,72 +66,45 @@ export const handler: Handlers['CreateInvitation'] = async (req, { emit, logger 
       role,
     })
 
-    // Calculate expiresAt
-    const expiresAt = new Date(Date.now() + expiresIn * 1000)
+    // Generate a unique request ID
+    const requestId = generateRequestId()
 
-    // Call Better Auth's createInvitation endpoint
-    // Better Auth returns the invitation data directly, or throws an error
-    let invitationData: InvitationData
-    try {
-      invitationData = await auth.api.createInvitation({
-        body: {
-          organizationId: orgId,
-          email,
-          role,
-          expiresAt: expiresAt.toISOString(),
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as InvitationData
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to create invitation', {
-        error: error.message || 'Unknown error',
+    // Initialize the request in state
+    await initRequest(state, 'org-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'organization.invitation.create.requested',
+      data: {
+        requestId,
         organizationId: orgId,
         email,
-      })
+        role,
+        expiresIn,
+        authorization: authorization ?? '',
+        userId: req.user.id,
+        userEmail: req.user.email,
+      },
+    })
 
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'org-requests', requestId)
+
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to create invitation' },
+        status: statusCode as 400,
+        body: { error: result.error },
       }
     }
 
-    logger.info('Invitation created successfully', {
-      organizationId: orgId,
-      invitationId: invitationData.id,
-      email,
-    })
-
-    // Emit event for sending invitation email
-    await emit({
-      topic: 'organization.invitation.created',
-      data: {
-        __topic: 'organization.invitation.created',
-        organizationId: orgId,
-        invitationId: invitationData.id,
-        email,
-        role,
-        createdAt: new Date(invitationData.createdAt).toISOString(),
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        invitation: {
-          id: invitationData.id,
-          organizationId: invitationData.organizationId,
-          email: invitationData.email,
-          role: invitationData.role,
-          status: invitationData.status,
-          expiresAt: new Date(invitationData.expiresAt).toISOString(),
-          createdAt: new Date(invitationData.createdAt).toISOString(),
-        },
-      },
+      body: (result as { status: 'completed'; data: { invitation: { id: string; organizationId: string; email: string; role: string; status: string; expiresAt: string; createdAt: string } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'

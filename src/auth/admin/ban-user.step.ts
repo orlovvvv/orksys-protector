@@ -1,9 +1,9 @@
 import type { ApiRouteConfig, Handlers } from 'motia'
 import { z } from 'zod'
-import { auth } from '../../lib/better-auth/auth'
 import { errorHandlerMiddleware } from '../middleware/error-handler.middleware'
 import { authMiddleware } from '../middleware/auth.middleware'
 import { adminMiddleware } from '../middleware/admin.middleware'
+import { generateRequestId, initRequest, waitForRequestResult } from '../lib/state-request'
 
 const bodySchema = z.object({
   userId: z.string(),
@@ -11,36 +11,13 @@ const bodySchema = z.object({
   banExpiresIn: z.number().optional(), // seconds until ban expires
 })
 
-// Type for Better Auth banUser response
-type BannedUser = {
-  id: string
-  name: string | null
-  email: string
-  banned: boolean
-  banReason: string | null
-  banExpires: string | Date | null
-}
-
-type BanUserResult = {
-  user: BannedUser
-}
-
-// Type for emit data
-type UserBannedEmitData = {
-  userId: string
-  banReason: string | null
-  banExpires: string | null
-  bannedByUserId: string
-  bannedByUserEmail: string
-}
-
 export const config: ApiRouteConfig = {
   name: 'AdminBanUser',
   type: 'api',
   path: '/admin/users/ban',
   method: 'POST',
   description: 'Ban a user (admin only)',
-  emits: ['admin.user.banned'],
+  emits: ['admin.user.ban.requested'],
   flows: ['admin-management'],
   middleware: [errorHandlerMiddleware, authMiddleware, adminMiddleware],
   bodySchema,
@@ -73,7 +50,7 @@ export const config: ApiRouteConfig = {
   },
 }
 
-export const handler: Handlers['AdminBanUser'] = async (req, { emit, logger }) => {
+export const handler: Handlers['AdminBanUser'] = async (req, { emit, logger, state }) => {
   try {
     const { userId, banReason, banExpiresIn } = bodySchema.parse(req.body)
 
@@ -91,81 +68,44 @@ export const handler: Handlers['AdminBanUser'] = async (req, { emit, logger }) =
       banExpiresIn,
     })
 
-    // Call Better Auth's admin banUser endpoint
-    // Better Auth returns the banned user data directly, or throws an error
-    let result: BanUserResult
-    try {
-      result = await auth.api.banUser({
-        body: {
-          userId,
-          banReason,
-          banExpiresIn,
-        },
-        // Type assertion: Better Auth expects HeadersInit, our middleware provides a compatible object
-        headers: req.headers['authorization']
-          ? { authorization: req.headers['authorization'] as string }
-          : {} as unknown as Headers,
-      }) as BanUserResult
-    } catch (betterAuthError: unknown) {
-      // Better Auth throws errors, we convert them to our response format
-      const error = betterAuthError as { message?: string }
-      logger.error('Failed to ban user', {
-        error: error.message || 'Unknown error',
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+
+    // Initialize the request in state
+    await initRequest(state, 'admin-requests', requestId, {})
+
+    // Get the authorization header
+    const authorization = req.headers['authorization'] as string | undefined
+
+    // Emit the request event
+    await emit({
+      topic: 'admin.user.ban.requested',
+      data: {
+        requestId,
         targetUserId: userId,
-      })
+        banReason: banReason ?? null,
+        banExpiresIn,
+        authorization: authorization ?? '',
+        adminUserId: req.user.id,
+        adminUserEmail: req.user.email,
+      },
+    })
 
-      const errorMessage = error.message?.toLowerCase() || ''
-      if (errorMessage.includes('not found') || errorMessage.includes('does not exist')) {
-        return {
-          status: 404,
-          body: { error: 'User not found' },
-        }
-      }
-      if (errorMessage.includes('yourself')) {
-        return {
-          status: 400,
-          body: { error: 'Cannot ban yourself' },
-        }
-      }
+    // Wait for the result from the event handler
+    const result = await waitForRequestResult(state, 'admin-requests', requestId)
 
+    if (result.status === 'failed') {
+      const statusCode = result.statusCode ?? 400
       return {
-        status: 400,
-        body: { error: error.message || 'Failed to ban user' },
+        status: statusCode as 400 | 404,
+        body: { error: result.error },
       }
     }
 
-    const userData = result.user
-
-    logger.info('Admin banned user successfully', {
-      adminUserId: req.user.id,
-      targetUserId: userId,
-    })
-
-    // Emit event for audit logging
-    await emit({
-      topic: 'admin.user.banned',
-      data: {
-        __topic: 'admin.user.banned',
-        userId,
-        banReason: userData.banReason,
-        banExpires: userData.banExpires ? new Date(userData.banExpires).toISOString() : null,
-        bannedByUserId: req.user.id,
-        bannedByUserEmail: req.user.email,
-      },
-    })
-
+    // Return the successful result
     return {
       status: 200,
-      body: {
-        user: {
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          banned: userData.banned,
-          banReason: userData.banReason,
-          banExpires: userData.banExpires ? new Date(userData.banExpires).toISOString() : null,
-        },
-      },
+      body: (result as { status: 'completed'; data: { user: { id: string; name: string | null; email: string; banned: boolean; banReason: string | null; banExpires: string | null } } }).data,
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
